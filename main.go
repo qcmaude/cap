@@ -3,13 +3,12 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	// "fmt"
-	"github.com/codahale/blake2"
 	"io/ioutil"
 	"log"
 	"os"
 	"time"
+
+	"github.com/codahale/blake2"
 )
 
 //What would you recommend is the best way to set these up so as
@@ -43,14 +42,13 @@ var commands = map[string]func(){
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatal("Please provide a valid cap command.")
+		log.Fatal("please provide a valid cap command")
 	} else {
-		value, ok := commands[os.Args[1]]
-		if ok {
-			value()
-		} else {
-			checkError(errors.New("That is not a valid cap command."))
+		command, ok := commands[os.Args[1]]
+		if !ok {
+			log.Fatal("that is not a valid cap command.")
 		}
+		command()
 	}
 }
 
@@ -59,19 +57,12 @@ func main() {
 //   b. .cap/refs directory (with /heads, /remotes and later /tags)
 //   c. .cap/objects directory (with all commits and blobs)
 func create() {
-	//Create the .cap directory.
-	err := os.Mkdir(".cap", 0777)
-	checkError(err)
-	//Create the .refs directory.
-	err = os.Mkdir(".cap/refs", 0777)
-	checkError(err)
-	//Create an empty "main" branch ref.
-	err = os.Mkdir(".cap/refs/heads", 0777)
+	err := os.MkdirAll(".cap/refs/heads", 0666)
 	checkError(err)
 	refFile, err := os.Create(".cap/refs/heads/main")
 	checkError(err)
 	refFile.Close()
-	err = os.Mkdir(".cap/objects", 0777)
+	err = os.Mkdir(".cap/objects", 0666)
 	checkError(err)
 	err = ioutil.WriteFile(".cap/HEAD", []byte("ref/heads/main"), 0777)
 	checkError(err)
@@ -83,14 +74,16 @@ func create() {
 //4. Make a new directory for the commit
 //4. Update local ref of the current branch
 func commit() {
-	root := createBlob("file.txt")
+	root, err := createBlob("file.txt")
+	checkError(err)
 	//Throw error if there isn't a commit message.
 	//TODO: Is this something we want to enforce?
 	if len(os.Args) < 3 {
-		checkError(errors.New("Please provide a commit message"))
+		log.Fatal("please provide a commit message")
 	}
-	commit := generateCommit(root)
-	err := ioutil.WriteFile(".cap/refs/heads/main", []byte(commit), 0777)
+	commit, err := generateCommit(root)
+	checkError(err)
+	err = ioutil.WriteFile(".cap/refs/heads/main", []byte(commit), 0777)
 	checkError(err)
 }
 
@@ -121,27 +114,26 @@ func checkError(e error) {
 }
 
 //Uses Blake2 to generate a hash given []byte
-func generateHash(bytes []byte) []byte {
+func blake2b(bytes []byte) []byte {
 	hash := blake2.NewBlake2B()
 	hash.Write(bytes)
 	sum := hash.Sum(nil)
 	return sum
 }
 
-//Generates a hex string from a hash
-func generateHexFromHash(bytes []byte) string {
-	return hex.EncodeToString(bytes)
-}
-
 //Use this method to create individual file blobs
 //TODO: Create a new method (similar to this one) to hash directories
-func createBlob(file string) string {
+func createBlob(file string) (string, error) {
 	bytes, err := ioutil.ReadFile(file)
-	checkError(err)
-	hex := generateHexFromHash(generateHash(bytes))
+	if err != nil {
+		return "", err
+	}
+	hex := hex.EncodeToString(blake2b(bytes))
 	err = ioutil.WriteFile((".cap/objects/" + hex), bytes, 0777)
-	checkError(err)
-	return hex
+	if err != nil {
+		return "", err
+	}
+	return hex, nil
 }
 
 //1. Read the commit under the local ref for the current branch
@@ -149,19 +141,40 @@ func createBlob(file string) string {
 //3. Create JSON for commit
 //4. Hash commit JSON
 //5. Create file with hash as title
-func generateCommit(root string) string {
-	previousCommit := readPreviousCommit()
-	jsonAttributes := map[string]string{"root": root, "previous": previousCommit, "message": os.Args[2], "timestamp": time.Now().String()}
+
+//TODO: There is no canonical form for json; we're relying on the fact that the json
+//package produces consistent output. (We may be able to not keep the serialized bytes
+//to verify the hash)
+func generateCommit(root string) (string, error) {
+	previousCommit, err := readPreviousCommit()
+	if err != nil {
+		return "", err
+	}
+
+	jsonAttributes := map[string]string{"root": root,
+		"previous":  previousCommit,
+		"message":   os.Args[2],
+		"timestamp": time.Now().String()}
 	commitContent, _ := json.Marshal(jsonAttributes)
-	hash := generateHexFromHash(generateHash(commitContent))
-	err := ioutil.WriteFile((".cap/objects/" + hash + ".json"), commitContent, 0777)
-	checkError(err)
-	return hash
+	hash := hex.EncodeToString(blake2b(commitContent))
+	err = os.Mkdir((".cap/objects/" + hash[:2]), 0777)
+	if err != nil {
+		return "", err
+	}
+
+	err = ioutil.WriteFile((".cap/objects/" + hash + ".json"), commitContent, 0777)
+	if err != nil {
+		return "", err
+	}
+
+	return hash, nil
 }
 
 //Read local ref of current branch
-func readPreviousCommit() string {
+func readPreviousCommit() (string, error) {
 	contents, err := ioutil.ReadFile(".cap/refs/heads/main")
-	checkError(err)
-	return string(contents)
+	if err != nil {
+		return "", err
+	}
+	return string(contents), nil
 }
