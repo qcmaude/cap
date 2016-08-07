@@ -11,8 +11,6 @@ import (
 	"github.com/codahale/blake2"
 )
 
-var mainDirectory = Directory{name: ".cap", directories: []Directory{Directory{name: "refs", directories: []Directory{Directory{name: "head", files: []string{"main"}}}}, Directory{name: "objs"}}}
-
 var commands = map[string]func(){
 	"commit": commit,
 	"create": create,
