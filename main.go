@@ -129,7 +129,7 @@ func createBlob(file string) (string, error) {
 		return "", err
 	}
 	hex := hex.EncodeToString(blake2b(bytes))
-	err = ioutil.WriteFile((".cap/objects/" + hex), bytes, 0666)
+	err = ioutil.WriteFile(".cap/objects/"+hex, bytes, 0666)
 	if err != nil {
 		return "", err
 	}
@@ -157,12 +157,12 @@ func generateCommit(root string) (string, error) {
 		"timestamp": time.Now().String()}
 	commitContent, _ := json.Marshal(jsonAttributes)
 	hash := hex.EncodeToString(blake2b(commitContent))
-	err = os.Mkdir((".cap/objects/" + hash[:2]), 0777)
+	err = os.Mkdir(".cap/objects/"+hash[:2], 0777)
 	if err != nil {
 		return "", err
 	}
 
-	err = ioutil.WriteFile((".cap/objects/" + hash + ".json"), commitContent, 0666)
+	err = ioutil.WriteFile(".cap/objects/"+hash+".json", commitContent, 0666)
 	if err != nil {
 		return "", err
 	}
