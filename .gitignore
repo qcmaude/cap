@@ -19,6 +19,7 @@ _cgo_gotypes.go
 _cgo_export.*
 
 file.txt
+cap
 
 _testmain.go
 
