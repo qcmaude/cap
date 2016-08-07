@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/codahale/blake2"
@@ -16,6 +17,7 @@ var commands = map[string]func(){
 	"create": create,
 	"pull":   pull,
 	"push":   push,
+	"diff":   diff,
 }
 
 func main() {
@@ -63,6 +65,29 @@ func commit() {
 	checkError(err)
 	err = ioutil.WriteFile(".cap/refs/heads/main", []byte(commit), 0666)
 	checkError(err)
+}
+
+//Prints out the difference between working directory and last commit
+func diff() {
+	commit, err := readCurrentCommit()
+	var v struct{ Root string }
+	err = readJSONFile(".cap/objects/"+commit+".json", &v)
+	if err != nil {
+		log.Println("cannot read:", err)
+		os.Exit(2)
+	}
+
+	cmd := exec.Command("diff", "file.txt", ".cap/objects/"+v.Root)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if isExitStatus(err, 1) {
+		os.Exit(1)
+	}
+	if err != nil {
+		log.Println("diff:", err)
+		os.Exit(2)
+	}
 }
 
 // Looking at the other ("remote") copy of the repo
@@ -124,7 +149,7 @@ func saveBlob(file string) (string, error) {
 //package produces consistent output. (We may be able to not keep the serialized bytes
 //to verify the hash)
 func saveCommit(root string) (string, error) {
-	previousCommit, err := readPreviousCommit()
+	previousCommit, err := readCurrentCommit()
 	if err != nil {
 		return "", err
 	}
@@ -149,10 +174,18 @@ func saveCommit(root string) (string, error) {
 }
 
 //Read local ref of current branch
-func readPreviousCommit() (string, error) {
+func readCurrentCommit() (string, error) {
 	contents, err := ioutil.ReadFile(".cap/refs/heads/main")
 	if err != nil {
 		return "", err
 	}
 	return string(contents), nil
+}
+
+func readJSONFile(filename string, v interface{}) error {
+	contents, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(contents, v)
 }
