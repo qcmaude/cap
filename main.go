@@ -11,26 +11,6 @@ import (
 	"github.com/codahale/blake2"
 )
 
-//What would you recommend is the best way to set these up so as
-//to keep everything DRY but also modular?
-//My instinct is to make a sort of ".cap directory" struct
-//that has a base directory name (.cap), and a list of directories
-//(refs, objects, etc).
-
-//Here we have a recursive definition of a directory
-type Directory struct {
-	name        string
-	directories []Directory
-	files       []string
-}
-
-//We could also use a map-like structure:
-// var capDirectories = map[string]string{
-// 		"baseDirectory": ".cap",
-// 		"objects": ".cap/objects",
-// 		"refs": ".cap/refs"
-// }
-
 var mainDirectory = Directory{name: ".cap", directories: []Directory{Directory{name: "refs", directories: []Directory{Directory{name: "head", files: []string{"main"}}}}, Directory{name: "objs"}}}
 
 var commands = map[string]func(){
