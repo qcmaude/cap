@@ -74,14 +74,14 @@ func create() {
 //4. Make a new directory for the commit
 //4. Update local ref of the current branch
 func commit() {
-	root, err := createBlob("file.txt")
+	root, err := saveBlob("file.txt")
 	checkError(err)
 	//Throw error if there isn't a commit message.
 	//TODO: Is this something we want to enforce?
 	if len(os.Args) < 3 {
 		log.Fatal("please provide a commit message")
 	}
-	commit, err := generateCommit(root)
+	commit, err := saveCommit(root)
 	checkError(err)
 	err = ioutil.WriteFile(".cap/refs/heads/main", []byte(commit), 0666)
 	checkError(err)
@@ -123,7 +123,7 @@ func blake2b(bytes []byte) []byte {
 
 //Use this method to create individual file blobs
 //TODO: Create a new method (similar to this one) to hash directories
-func createBlob(file string) (string, error) {
+func saveBlob(file string) (string, error) {
 	bytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		return "", err
@@ -145,7 +145,7 @@ func createBlob(file string) (string, error) {
 //TODO: There is no canonical form for json; we're relying on the fact that the json
 //package produces consistent output. (We may be able to not keep the serialized bytes
 //to verify the hash)
-func generateCommit(root string) (string, error) {
+func saveCommit(root string) (string, error) {
 	previousCommit, err := readPreviousCommit()
 	if err != nil {
 		return "", err
