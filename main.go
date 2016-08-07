@@ -57,14 +57,14 @@ func main() {
 //   b. .cap/refs directory (with /heads, /remotes and later /tags)
 //   c. .cap/objects directory (with all commits and blobs)
 func create() {
-	err := os.MkdirAll(".cap/refs/heads", 0666)
+	err := os.MkdirAll(".cap/refs/heads", 0777)
 	checkError(err)
 	refFile, err := os.Create(".cap/refs/heads/main")
 	checkError(err)
 	refFile.Close()
-	err = os.Mkdir(".cap/objects", 0666)
+	err = os.Mkdir(".cap/objects", 0777)
 	checkError(err)
-	err = ioutil.WriteFile(".cap/HEAD", []byte("ref/heads/main"), 0777)
+	err = ioutil.WriteFile(".cap/HEAD", []byte("ref/heads/main"), 0666)
 	checkError(err)
 }
 
@@ -83,7 +83,7 @@ func commit() {
 	}
 	commit, err := generateCommit(root)
 	checkError(err)
-	err = ioutil.WriteFile(".cap/refs/heads/main", []byte(commit), 0777)
+	err = ioutil.WriteFile(".cap/refs/heads/main", []byte(commit), 0666)
 	checkError(err)
 }
 
@@ -129,7 +129,7 @@ func createBlob(file string) (string, error) {
 		return "", err
 	}
 	hex := hex.EncodeToString(blake2b(bytes))
-	err = ioutil.WriteFile((".cap/objects/" + hex), bytes, 0777)
+	err = ioutil.WriteFile((".cap/objects/" + hex), bytes, 0666)
 	if err != nil {
 		return "", err
 	}
@@ -162,7 +162,7 @@ func generateCommit(root string) (string, error) {
 		return "", err
 	}
 
-	err = ioutil.WriteFile((".cap/objects/" + hash + ".json"), commitContent, 0777)
+	err = ioutil.WriteFile((".cap/objects/" + hash + ".json"), commitContent, 0666)
 	if err != nil {
 		return "", err
 	}
