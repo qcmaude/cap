@@ -70,6 +70,10 @@ func commit() {
 //Prints out the difference between working directory and last commit
 func diff() {
 	commit, err := readCurrentCommit()
+	if err != nil {
+		log.Println("cannot read:", err)
+		os.Exit(2)
+	}
 	var v struct{ Root string }
 	err = readJSONFile(".cap/objects/"+commit+".json", &v)
 	if err != nil {
