@@ -95,20 +95,22 @@ func diff() {
 	}
 }
 
+//Remote interface for cloning/merging/pulling
 type remote interface {
 	getObjects(hashes []string) (contents [][]byte, err error)
 	listObjects() (hashes []string, err error)
 	listBranches() (refs [][2]string, err error)
 }
 
-func clone() {
-	//Give it a remote location (optionally local location)
-	// - assuming directory
-	//Local needs to init a new repo (create())
-	//Takes (.cap/objects) objects in that location and copies to current location
-	//Populate local refs/remote/origin
-	//Checkout current commit of local repo
 
+//1. Create an empty cap project
+//2. Given a remote location (currently local location),
+//   create a new remote object
+//3. Copy remote location objects to current location
+//4. Create and populate refs/remote/origin
+//5. Checkout current commit of local project
+//TODO: Allow cloning from a remote location (not just local locations)
+func clone() {
 	if len(os.Args) < 3 {
 		log.Fatal("please provide a remote repo location")
 	}
@@ -136,8 +138,8 @@ func clone() {
 	checkError(err)
 }
 
-// copyFile copies the contents of src to dst.
-// if dst doesn't exist, it is created with mode 0666,
+// Copies the contents of src file to dst file.
+// If dst doesn't exist, it is created with mode 0666,
 // otherwise, it is truncated.
 func copyFile(dst, src string) error {
 	contents, err := ioutil.ReadFile(src)
@@ -147,6 +149,8 @@ func copyFile(dst, src string) error {
 	return ioutil.WriteFile(dst, contents, 0666)
 }
 
+// Creates a new remote location object
+//TODO: allow remote locations over a network
 func newRemote(location string) (remote, error) {
 	if strings.HasPrefix(location, "/") {
 		return &filesystemRemote{dir: location}, nil
@@ -154,6 +158,8 @@ func newRemote(location string) (remote, error) {
 	return nil, errors.New("unrecognized location")
 }
 
+// Given a remote location, all objects are iterated over
+// and copied to local project.
 func copyRemoteObjects(rem remote) error {
 	objectNames, err := rem.listObjects()
 	if err != nil {
@@ -166,7 +172,8 @@ func copyRemoteObjects(rem remote) error {
 
 	for i, objectName := range objectNames {
 		hashedFile := hex.EncodeToString(blake2b(objectContents[i]))
-		// Verify if the hashedFile contents match the file title; if not, throw an error
+		// Verify if the hashedFile contents match the file title;
+		// if not, throw an error
 		if hashedFile != objectName && hashedFile+".json" != objectName {
 			log.Fatal("remote object name does not match hash")
 		}
