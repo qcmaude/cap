@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/codahale/blake2"
@@ -18,6 +20,7 @@ var commands = map[string]func(){
 	"pull":   pull,
 	"push":   push,
 	"diff":   diff,
+	"clone":  clone,
 }
 
 func main() {
@@ -56,8 +59,6 @@ func create() {
 func commit() {
 	root, err := saveBlob("file.txt")
 	checkError(err)
-	//Throw error if there isn't a commit message.
-	//TODO: Is this something we want to enforce?
 	if len(os.Args) < 3 {
 		log.Fatal("please provide a commit message")
 	}
@@ -91,6 +92,95 @@ func diff() {
 	if err != nil {
 		log.Println("diff:", err)
 		os.Exit(2)
+	}
+}
+
+//Remote interface for cloning/merging/pulling
+type remote interface {
+	getObjects(hashes []string) (contents [][]byte, err error)
+	listObjects() (hashes []string, err error)
+	listBranches() (refs [][2]string, err error)
+}
+
+
+//1. Create an empty cap project
+//2. Given a remote location (currently local location),
+//   create a new remote object
+//3. Copy remote location objects to current location
+//4. Create and populate refs/remote/origin
+//5. Checkout current commit of local project
+//TODO: Allow cloning from a remote location (not just local locations)
+func clone() {
+	if len(os.Args) < 3 {
+		log.Fatal("please provide a remote repo location")
+	}
+	create()
+	rem, err := newRemote(os.Args[2])
+	checkError(err)
+	err = copyRemoteObjects(rem)
+	checkError(err)
+	err = os.MkdirAll(".cap/refs/remote/origin", 0777)
+	checkError(err)
+	refs, err := rem.listBranches()
+	checkError(err)
+	for _, ref := range refs {
+		err = ioutil.WriteFile(".cap/refs/remote/origin/"+ref[0], []byte(ref[1]), 0666)
+		checkError(err)
+	}
+
+	copyFile(".cap/refs/heads/main", ".cap/refs/remote/origin/main")
+
+	commit, err := readCurrentCommit()
+	var v struct{ Root string }
+	err = readJSONFile(".cap/objects/"+commit+".json", &v)
+	checkError(err)
+	err = copyFile("file.txt", ".cap/objects/"+v.Root)
+	checkError(err)
+}
+
+// Copies the contents of src file to dst file.
+// If dst doesn't exist, it is created with mode 0666,
+// otherwise, it is truncated.
+func copyFile(dst, src string) error {
+	contents, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(dst, contents, 0666)
+}
+
+// Creates a new remote location object
+//TODO: allow remote locations over a network
+func newRemote(location string) (remote, error) {
+	if strings.HasPrefix(location, "/") {
+		return &filesystemRemote{dir: location}, nil
+	}
+	return nil, errors.New("unrecognized location")
+}
+
+// Given a remote location, all objects are iterated over
+// and copied to local project.
+func copyRemoteObjects(rem remote) error {
+	objectNames, err := rem.listObjects()
+	if err != nil {
+		return err
+	}
+	objectContents, err := rem.getObjects(objectNames)
+	if err != nil {
+		return err
+	}
+
+	for i, objectName := range objectNames {
+		hashedFile := hex.EncodeToString(blake2b(objectContents[i]))
+		// Verify if the hashedFile contents match the file title;
+		// if not, throw an error
+		if hashedFile != objectName && hashedFile+".json" != objectName {
+			log.Fatal("remote object name does not match hash")
+		}
+		err = ioutil.WriteFile(".cap/objects/"+objectName, objectContents[i], 0666)
+		if err != nil {
+			return err
+		}
 	}
 }
 
